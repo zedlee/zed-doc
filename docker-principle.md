@@ -15,7 +15,7 @@
 ## 2. 核心原理
 Docker-CE 目前版本组件丰富，功能复杂，本章不过多讨论。
 只讨论其虚拟化的实现是通过哪些核心技术来支撑的。
-![](./img/docker-core-tech.jpg)
+![](./img/docker-core-tech.png)
 
 ### 2.1 Linux Namespace
 Linux Namespace是Linux提供的一种内核级别环境隔离的方法。
@@ -106,7 +106,8 @@ Linux Control Group 可以限制进程以下几类子系统对资源的使用:
 * net_cls — 这​​​个​​​子​​​系​​​统​​​使​​​用​​​等​​​级​​​识​​​别​​​符​​​（classid）标​​​记​​​网​​​络​​​数​​​据​​​包​​​，可​​​允​​​许​​​ Linux 流​​​量​​​控​​​制​​​程​​​序​​​（tc）识​​​别​​​从​​​具​​​体​​​ cgroup 中​​​生​​​成​​​的​​​数​​​据​​​包​​​。​​​
 * net_prio — 这个子系统用来设计网络流量的优先级。
 * hugetlb — 这个子系统主要针对于HugeTLB系统进行限制，这是一个大页文件系统。
-![CGroup 官方文档](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
+
+[CGroup 官方文档](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
 
 #### 2.2.2 CGroups Demo: 限制进程的资源使用
 TODO: 限制一个死循环进程对cpu的使用
