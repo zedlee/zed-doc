@@ -109,12 +109,28 @@ Linux Control Group 可以限制进程以下几类子系统对资源的使用:
 
 [CGroup 官方文档](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
 
-#### 2.2.2 CGroups Demo: 限制进程的资源使用
+#### 2.2.3 CGroups 使用
+CGroup 将自己实现成了一个文件系统，所以我们想要限制进程的资源使用时，并非通过内核API的调用，而是直接修改文件的内容。
+以下命令可用于查看CGroup被挂载在哪个文件夹下
+```
+mount -t cgroup
+```
+
+#### 2.2.4 CGroups Demo: 限制进程的资源使用
 TODO: 限制一个死循环进程对cpu的使用
 
 ### 2.3 Union Filesystem
-Union Filesystem 千千万，我们就只讲docker优先使用overlay2好了。
+Union Filesystem 千千万，我们就只讲docker推荐使用overlay2好了。
 
+#### 2.3.1 overlay2
+合并多个目录，并将其展示为一个目录。这些目录称为层，合并过程称之为union mount。
+OverlayFS将下层的目录称为lowerdir，上层的目录称为upperdir。合并后的统一视图称之为merged。
+
+overlay2驱动程序最多支持128个OverlayFS层。
+该功能为与层相关的Docker命令(如Docker build和Docker commit)提供了更好的支持及性能。
+
+#### 2.3.2 在docker中的应用
+TODO: 层的存储
 
 ### 2.4 简单总结
 Linux Namespace: 用于实现操作系统级别资源的隔离，如主机名、域名、PID、文件系统等。
