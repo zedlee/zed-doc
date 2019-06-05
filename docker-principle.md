@@ -75,7 +75,44 @@ Network namespace从网络角度使容器拥有更高的可用性：每个容器
 这意味着该进程对User namespace内的操作具有完全root权限，但对于命名空间外的操作没有管理员权限。
 
 #### 2.1.7 命名空间使用Demo：执行一个在指定命名空间下的bash
-TODO: demo代码编写及执行
+TODO: demo代码修改
+```
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdio.h>
+#include <sched.h>
+#include <signal.h>
+#include <unistd.h>
+ 
+/* 定义一个给 clone 用的栈，栈大小1M */
+#define STACK_SIZE (1024 * 1024)
+static char container_stack[STACK_SIZE];
+ 
+char* const container_args[] = {
+    "/bin/bash",
+    NULL
+};
+ 
+int container_main(void* arg)
+{
+    printf("Container - inside the container!\n");
+    /* 直接执行一个shell，以便我们观察这个进程空间里的资源是否被隔离了 */
+    execv(container_args[0], container_args); 
+    printf("Something's wrong!\n");
+    return 1;
+}
+ 
+int main()
+{
+    printf("Parent - start a container!\n");
+    /* 调用clone函数，其中传出一个函数，还有一个栈空间的（为什么传尾指针，因为栈是反着的） */
+    int container_pid = clone(container_main, container_stack+STACK_SIZE, SIGCHLD, NULL);
+    /* 等待子进程结束 */
+    waitpid(container_pid, NULL, 0);
+    printf("Parent - container stopped!\n");
+    return 0;
+}
+```
 
 ### 2.2 CGroups
 Linux CGroup全称Linux Control Group， 是Linux内核的一个功能，用来限制，控制与分离一个进程组群的资源（如CPU、内存、磁盘输入输出等）。
@@ -117,7 +154,38 @@ mount -t cgroup
 ```
 
 #### 2.2.4 CGroups Demo: 限制进程的资源使用
-TODO: 限制一个死循环进程对cpu的使用
+```
+// cgtest.cpp
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+int main (int argc, char *argv[])
+{
+ 
+    /* 设置CPU利用率为20% */
+    system("mkdir /sys/fs/cgroup/cpu/deadloop_test");
+    system("echo 20000 > /sys/fs/cgroup/cpu/deadloop_test/cpu.cfs_quota_us");
+
+    /* 将当前进程设置到已被限制CPU使用的控制组中 */
+    char cmd[128];
+    sprintf(cmd, "echo %ld >> /sys/fs/cgroup/cpu/deadloop_test/tasks", getpid());
+    system(cmd);
+ 
+    /* 执行死循环 */
+    int i = 0;
+    for(;;) i++;
+    return 0;
+}
+```
+
+编译执行
+```
+g++ cgtest.cpp -o cgtest.o
+./cgtest.o
+```
+top命令观察进程对CPU的占用
 
 ### 2.3 Union Filesystem
 Union Filesystem 千千万，我们就只讲docker推荐使用overlay2好了。
@@ -129,8 +197,6 @@ OverlayFS将下层的目录称为lowerdir，上层的目录称为upperdir。合�
 overlay2驱动程序最多支持128个OverlayFS层。
 该功能为与层相关的Docker命令(如Docker build和Docker commit)提供了更好的支持及性能。
 
-#### 2.3.2 在docker中的应用
-TODO: 层的存储, 层的索引
 
 ### 2.4 简单总结
 Linux Namespace: 用于实现操作系统级别资源的隔离，如主机名、域名、PID、文件系统等。
