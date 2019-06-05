@@ -155,7 +155,7 @@ mount -t cgroup
 
 #### 2.2.4 CGroups Demo: 限制进程的资源使用
 ```
-// cgtest.cpp
+// cgtest.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -182,7 +182,7 @@ int main (int argc, char *argv[])
 
 编译执行
 ```
-g++ cgtest.cpp -o cgtest.o
+g++ cgtest.c -o cgtest.o
 ./cgtest.o
 ```
 top命令观察进程对CPU的占用
@@ -206,11 +206,79 @@ CGroups: 物理资源的隔离, 如CPU、硬盘、内存等。
 Union Filesystem: 镜像文件的合并。
 
 ## 3. Docker架构
-https://docs.docker.com/engine/docker-overview/
+Docker基于C/S架构。守护进程提供REST API，当其收到来自客户端的请求后则会构建、发布和运行容器。
+与常见的C/S应用一样，客户端和守护程序既可以部署于同一宿主机上，也可以分别部署在不同的机器上。
 
-## 4. 极简使用指南
+Docker 由以下几个组件构成：
+* Docker守护进程
+* Docker客户端
+* Docker注册表
+* Docker对象
+
+![Docker架构](./img/docker-architecture.png)
+
+### 3.1 Docker守护进程
+Docker守护程序（dockerd）主要职责为处理来自于客户端的请求，以及管理Docker对象，如镜像，容器，网络和卷。
+守护程序之间还可以相互通信以共同管理Docker集群。
+
+### 3.2 Docker客户端
+Docker client是用户与Docker守护进程交互的主要方式。当用户使用诸如docker run的命令时，客户端会将这些命令发送给它们dockerd，然后由其执行。
+
+### 3.3 Docker registry
+Docker registry存储Docker镜像。Docker Hub是任何人都可以使用的公共registry，Docker配置为默认在Docker Hub上查找镜像。
+此外，用户还可以部署自己的私人registry。
+
+使用docker pull或docker run命令时，将从配置的registry中提取所需的镜像。使用该docker push命令时，镜像将被推送到配置的registry。
+配置文件的默认位置为 /etc/docker
+
+### 3.4 Docker对象
+使用Docker的过程，其实就是操控镜像，容器，网络，卷，插件等对象的过程。
+以下我们只介绍最常见的两个对象：
+* 镜像：一堆只读层（read-only layer）的统一视角，合并方式为上文提到的Union Filesystem
+* 容器：一个可运行的镜像的实例，两者的关系类似于可执行程序和进程，又或是类和对象（原谅我拙劣的比喻）
+
+
+## 4. Docker极简使用指南
+
+### 4.1 通过dockerfile构建镜像
+```
+# 基于官方 Python 镜像构建我们的极简HTTP服务器
+FROM python
+
+# 设置工作目录
+WORKDIR /root
+
+# 将默认主页写入到工作目录
+RUN echo "Hello docker!" > index.html
+
+# 暴露8080端口
+EXPOSE 8080
+
+CMD ["python3", "-m", "http.server", "8080"]
+```
+在dockerfile的目录下执行以下构建命令
+```
+docker bulid -t hello-docker .
+```
+
+### 4.2 运行容器
+```
+docker run -it hello-docker -p 8080:8080
+
+# 检验服务到底是否按预期运行了
+curl -i '127.0.0.1:8080'
+```
+
+### 4.3 调试
+本人菜鸡，就两手调试手段：
+* docker logs [container_id]: 首先，没有什么问题是隔行打日志不能解决的。
+* docker exec -it [container_id] /bin/bash : 如果有，在容器内启个bash子进程, 再深入排查一波还是能解决的  -_-||
 
 ## 5. 与其他虚拟化技术的比较
+同第二章所述，docker的虚拟化基于一组进程的隔离（即容器）以及其资源使用的控制。
+
+而虚拟机是在宿主系统上运行多个子系统，故占用资源更多，但亦为应用提供更为原生的系统环境。
+
 
 ## Reference
 * Docker核心技术 https://draveness.me/docker
