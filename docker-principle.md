@@ -188,6 +188,7 @@ g++ cgtest.c -o cgtest.o
 top命令观察进程对CPU的占用
 
 ### 2.3 Union Filesystem
+TODO: 未解释清楚Union Filesystem的具体工作
 Union Filesystem 千千万，我们就只讲docker推荐使用overlay2好了。
 
 #### 2.3.1 overlay2
