@@ -130,7 +130,7 @@ overlay2驱动程序最多支持128个OverlayFS层。
 该功能为与层相关的Docker命令(如Docker build和Docker commit)提供了更好的支持及性能。
 
 #### 2.3.2 在docker中的应用
-TODO: 层的存储
+TODO: 层的存储, 层的索引
 
 ### 2.4 简单总结
 Linux Namespace: 用于实现操作系统级别资源的隔离，如主机名、域名、PID、文件系统等。
