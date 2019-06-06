@@ -77,42 +77,54 @@ Network namespace从网络角度使容器拥有更高的可用性：每个容器
 #### 2.1.7 命名空间使用Demo：执行一个在指定命名空间下的bash
 TODO: demo代码修改
 ```
+// lns.c
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
 #include <sched.h>
 #include <signal.h>
 #include <unistd.h>
- 
+#include <sys/syscall.h>
+#include <stdlib.h>
+
 /* 定义一个给 clone 用的栈，栈大小1M */
 #define STACK_SIZE (1024 * 1024)
 static char container_stack[STACK_SIZE];
- 
+
 char* const container_args[] = {
     "/bin/bash",
     NULL
 };
- 
+
 int container_main(void* arg)
 {
-    printf("Container - inside the container!\n");
-    /* 直接执行一个shell，以便我们观察这个进程空间里的资源是否被隔离了 */
-    execv(container_args[0], container_args); 
+    printf("Container [%5d] - inside the container!\n", getpid());
+    sethostname("container",10);
+    /* 重新mount proc文件系统到 /proc下 */
+    system("mount -t proc proc /proc");
+    execv(container_args[0], container_args);
     printf("Something's wrong!\n");
     return 1;
 }
- 
+
 int main()
 {
-    printf("Parent - start a container!\n");
-    /* 调用clone函数，其中传出一个函数，还有一个栈空间的（为什么传尾指针，因为栈是反着的） */
-    int container_pid = clone(container_main, container_stack+STACK_SIZE, SIGCHLD, NULL);
-    /* 等待子进程结束 */
+    printf("Parent [%5d] - start a container!\n", getpid());
+    /* 启用Mount Namespace - 增加CLONE_NEWNS参数 */
+    int container_pid = clone(container_main, container_stack+STACK_SIZE,
+            CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS | SIGCHLD, NULL);
     waitpid(container_pid, NULL, 0);
     printf("Parent - container stopped!\n");
     return 0;
 }
 ```
+编译代码
+```
+g++ lns.c -o lns.o
+sudo ./lns.o
+```
+
+运行后执行ps -ef, top 等命令观察操作系统资源是否已按预期成功隔离
 
 ### 2.2 CGroups
 Linux CGroup全称Linux Control Group， 是Linux内核的一个功能，用来限制，控制与分离一个进程组群的资源（如CPU、内存、磁盘输入输出等）。
@@ -188,15 +200,32 @@ g++ cgtest.c -o cgtest.o
 top命令观察进程对CPU的占用
 
 ### 2.3 Union Filesystem
-TODO: 未解释清楚Union Filesystem的具体工作
-Union Filesystem 千千万，我们就只讲docker推荐使用overlay2好了。
+UnionFS由Linux，FreeBSD和NetBSD操作系统设计的文件系统服务, 用于将多个文件系统合并为一个联合挂载点。
+Union Filesystem将不同文件系统的文件和目录“透明地”覆盖，形成一个单一一致的文件系统。
+```
+mount -t overlay
+```
 
-#### 2.3.1 overlay2
-合并多个目录，并将其展示为一个目录。这些目录称为层，合并过程称之为union mount。
-OverlayFS将下层的目录称为lowerdir，上层的目录称为upperdir。合并后的统一视图称之为merged。
+Docker 将这些合并后的文件系统称之为镜像。充分借用Union Filesystem的设计思想，镜像之间可以相互叠加，而位于下层的镜像为上层镜像的父镜像。
+当从镜像启动一个容器时，docker 会为镜像挂载一层可读可写的文件系统。
+首次启动时，这个这个可读写的文件系统其实是空的，只有里面的文件发生真实的改变时才会被写入(Copy on write).
+打比方说，如果要更改文件，则该文件会先从下层的只读层复制到读写层，然后再被修改。该文件的只读版本仍然存在于父镜像中的只读层中。
+![Docker Union Filesystem](./img/docker-filesystems.png)
 
-overlay2驱动程序最多支持128个OverlayFS层。
-该功能为与层相关的Docker命令(如Docker build和Docker commit)提供了更好的支持及性能。
+#### 2.3.1 写时复制(copy-on-write)
+写时复制，也叫隐式共享，是一种对可修改资源实现高效复制的资源管理技术。
+它的思想是，如果一个资源是重复的，但没有任何修改，这时候并不需要立即创建一个新的资源；这个资源可以被新旧实例共享。
+创建新资源发生在第一次写操作，也就是对资源进行修改的时候。
+通过这种资源共享的方式，可以显著地减少未修改资源复制带来的消耗，但是也会在进行资源修改的时候增减小部分的开销。
+
+#### 2.3.2 Docker目前推荐使用的FS Driver: overlay2 
+通过下方命令可以查看宿主机中已启动容器的文件系统挂载在哪个目录下，以及由哪些layers合并而成。
+```
+mount | grep overlay
+```
+镜像及底层fs的存储:
+* 若要查看一个镜像合并自哪些fs，可以在目录 /var/lib/docker/image/overlay2/layerdb/sha256/[image_id] 下查到。
+* 基础镜像的fs存储于 cd /var/lib/docker/overlay2/[root_fs_id]
 
 
 ### 2.4 简单总结
@@ -259,12 +288,12 @@ CMD ["python3", "-m", "http.server", "8080"]
 ```
 在dockerfile的目录下执行以下构建命令
 ```
-docker bulid -t hello-docker .
+docker build -t hello-docker .
 ```
 
 ### 4.2 运行容器
 ```
-docker run -it hello-docker -p 8080:8080
+docker run -p 8080:8080 -it hello-docker
 
 # 检验服务到底是否按预期运行了
 curl -i '127.0.0.1:8080'
