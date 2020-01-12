@@ -1,5 +1,7 @@
-# Readme
-Personal doc for review.
+# 学习笔记
+该仓库主要用户承载个人平日学习内容的笔记，以便日后复习。
+
+小弟才疏学浅，若有大佬发现当中纰漏，还请不吝告知。
 
 ## [websocket](./websocket.md)
 * websocket 设计理念
