@@ -11,7 +11,7 @@ Personal doc for review.
 * trie-tree的基本操作及实现
 * 该数据结构的优缺点及工业应用
 
-## [docker-priciple](./docker-priciple.md)
+## [docker-principle](./docker-principle.md)
 * docker完成资源隔离的核心组件及原理
 * 各组件的简介
 * docker使用入门教程
