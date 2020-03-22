@@ -49,32 +49,32 @@ void aeMain(aeEventLoop *eventLoop) {
 * 根据上述求得的时间间隔，传入内核api epoll_wait中，若无网络IO事件唤醒进程，则会休眠指定时间
   * 关于该api的详细描述epoll_wait() api manual page: http://www.man7.org/linux/man-pages/man2/epoll_wait.2.html
   * 结合IO多路复用的休眠实现如下：
-    ```
-    static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
-        aeApiState *state = eventLoop->apidata;
-        int retval, numevents = 0;
+```
+static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
+    aeApiState *state = eventLoop->apidata;
+    int retval, numevents = 0;
 
-        retval = epoll_wait(state->epfd,state->events,eventLoop->setsize,
-                tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
-        if (retval > 0) {
-            int j;
+    retval = epoll_wait(state->epfd,state->events,eventLoop->setsize,
+            tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
+    if (retval > 0) {
+        int j;
 
-            numevents = retval;
-            for (j = 0; j < numevents; j++) {
-                int mask = 0;
-                struct epoll_event *e = state->events+j;
+        numevents = retval;
+        for (j = 0; j < numevents; j++) {
+            int mask = 0;
+            struct epoll_event *e = state->events+j;
 
-                if (e->events & EPOLLIN) mask |= AE_READABLE;
-                if (e->events & EPOLLOUT) mask |= AE_WRITABLE;
-                if (e->events & EPOLLERR) mask |= AE_WRITABLE;
-                if (e->events & EPOLLHUP) mask |= AE_WRITABLE;
-                eventLoop->fired[j].fd = e->data.fd;
-                eventLoop->fired[j].mask = mask;
-            }
+            if (e->events & EPOLLIN) mask |= AE_READABLE;
+            if (e->events & EPOLLOUT) mask |= AE_WRITABLE;
+            if (e->events & EPOLLERR) mask |= AE_WRITABLE;
+            if (e->events & EPOLLHUP) mask |= AE_WRITABLE;
+            eventLoop->fired[j].fd = e->data.fd;
+            eventLoop->fired[j].mask = mask;
         }
-        return numevents;
     }
-    ```
+    return numevents;
+}
+```
 * afterSleep: 加 modules 锁(moduleAcquireGIL), 主要是担心用户自己实现的模块与redis框架代码并发读写数据导致崩溃
 * 处理网络IO读事件
   * 接受连接，处理Tcp连接(acceptTcpHandler)、处理Unix domain socket (acceptUnixHandler)
@@ -82,38 +82,38 @@ void aeMain(aeEventLoop *eventLoop) {
 * 处理网络IO写事件(sendReplyToClient)
 * 处理定时事件(aeTimeEvent)
   * 定时器的设计为双向链表
-    ```
-    /* Time event structure */
-    typedef struct aeTimeEvent {
-        long long id; /* time event identifier. */
-        long when_sec; /* seconds */
-        long when_ms; /* milliseconds */
-        aeTimeProc *timeProc;
-        aeEventFinalizerProc *finalizerProc;
-        void *clientData;
-        struct aeTimeEvent *prev;
-        struct aeTimeEvent *next;
-    } aeTimeEvent;
-    ```
+```
+/* Time event structure */
+typedef struct aeTimeEvent {
+    long long id; /* time event identifier. */
+    long when_sec; /* seconds */
+    long when_ms; /* milliseconds */
+    aeTimeProc *timeProc;
+    aeEventFinalizerProc *finalizerProc;
+    void *clientData;
+    struct aeTimeEvent *prev;
+    struct aeTimeEvent *next;
+} aeTimeEvent;
+```
   * 每次执行该类事件时，遍历整个链表，当发现节点中存在预期执行事件小于当时事件的任务时立即执行。代码如下：
-    ```
-    aeGetTime(&now_sec, &now_ms);
-    if (now_sec > te->when_sec ||
-        (now_sec == te->when_sec && now_ms >= te->when_ms))
-    {
-        int retval;
+```
+aeGetTime(&now_sec, &now_ms);
+if (now_sec > te->when_sec ||
+    (now_sec == te->when_sec && now_ms >= te->when_ms))
+{
+    int retval;
 
-        id = te->id;
-        retval = te->timeProc(eventLoop, id, te->clientData);
-        processed++;
-        if (retval != AE_NOMORE) {
-            aeAddMillisecondsToNow(retval,&te->when_sec,&te->when_ms);
-        } else {
-            te->id = AE_DELETED_EVENT_ID;
-        }
+    id = te->id;
+    retval = te->timeProc(eventLoop, id, te->clientData);
+    processed++;
+    if (retval != AE_NOMORE) {
+        aeAddMillisecondsToNow(retval,&te->when_sec,&te->when_ms);
+    } else {
+        te->id = AE_DELETED_EVENT_ID;
     }
-    te = te->next;
-    ```
+}
+te = te->next;
+```
   * 题外话：腾讯面试题有一条为设计一个日调用量过亿的定时器，你会用到哪些数据结构？请务必不要使用该答案，因为效率不高。之所以redis使用该数据结构作为定时器，是因为redis在运行过程中仅会创建少量的定时任务，是应用场景和数据体量决定的，根据木桶原理，因为无法成为性能瓶颈，所以也没有优化的必要。但我们要知道，当数据体量巨大的时候,每次为o(n)的执行效率仍很容易成为瓶颈。
 
 ## 2. 如何处理来自client的命令
@@ -126,46 +126,46 @@ void aeMain(aeEventLoop *eventLoop) {
   * 对解析成的命令进行处理`processCommand(c)`
   * 调用`call(c,CMD_CALL_FULL);`执行命令。
   * 执行回调函数`getCommand(c)`, 实现逻辑如下：
-    ```
-    int getGenericCommand(client *c) {
-        robj *o;
+```
+int getGenericCommand(client *c) {
+    robj *o;
 
-        if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)
-            return C_OK;
+    if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)
+        return C_OK;
 
-        if (o->type != OBJ_STRING) {
-            addReply(c,shared.wrongtypeerr);
-            return C_ERR;
-        } else {
-            addReplyBulk(c,o);
-            return C_OK;
-        }
-    }
-
-    void getCommand(client *c) {
-        getGenericCommand(c);
-    }
-
-    ```
-  * 将命令的执行结果放到c->buf的末尾, 实现如下：
-    ```
-    int _addReplyToBuffer(client *c, const char *s, size_t len) {
-        size_t available = sizeof(c->buf)-c->bufpos;
-
-        if (c->flags & CLIENT_CLOSE_AFTER_REPLY) return C_OK;
-
-        /* If there already are entries in the reply list, we cannot
-        * add anything more to the static buffer. */
-        if (listLength(c->reply) > 0) return C_ERR;
-
-        /* Check that the buffer has enough space available for this string. */
-        if (len > available) return C_ERR;
-
-        memcpy(c->buf+c->bufpos,s,len);
-        c->bufpos+=len;
+    if (o->type != OBJ_STRING) {
+        addReply(c,shared.wrongtypeerr);
+        return C_ERR;
+    } else {
+        addReplyBulk(c,o);
         return C_OK;
     }
-    ```
+}
+
+void getCommand(client *c) {
+    getGenericCommand(c);
+}
+```
+
+  * 将命令的执行结果放到c->buf的末尾, 实现如下：
+```
+int _addReplyToBuffer(client *c, const char *s, size_t len) {
+    size_t available = sizeof(c->buf)-c->bufpos;
+
+    if (c->flags & CLIENT_CLOSE_AFTER_REPLY) return C_OK;
+
+    /* If there already are entries in the reply list, we cannot
+    * add anything more to the static buffer. */
+    if (listLength(c->reply) > 0) return C_ERR;
+
+    /* Check that the buffer has enough space available for this string. */
+    if (len > available) return C_ERR;
+
+    memcpy(c->buf+c->bufpos,s,len);
+    c->bufpos+=len;
+    return C_OK;
+}
+```
   * 至此，由网络IO回调的整个读事件已完成
 * 由网络IO触发写事件回调函数`sendReplyToClient()`, 将`c->buf`中的数据通过发回给客户端。
 

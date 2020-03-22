@@ -1,4 +1,4 @@
-# 谈谈小李所理解的goroutine
+# goroutine 学习笔记
 
 ## 1. 什么是 goroutine
 * goroutine是协程在go语言中的官方原生实现，由关键词`go`描述
